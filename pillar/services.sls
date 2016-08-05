@@ -102,4 +102,4 @@ jmxproxy:
 
 anaconda:
   parcel_version: "4.0.0"
-  parcel_repo: "https://repo.continuum.io/pkgs/misc/parcels/"
+  parcel_repo: "http://54.229.30.212/anaconda_repo"
