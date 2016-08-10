@@ -1,21 +1,27 @@
 import requests
 
 
-def get_named_service(cm_host, cluster_name, service_name):
-    """ Returns named service for HA Cluster """
+def get_name_service(cm_host, cluster_name, service_name):
+    """ Returns name service for HA Cluster """
     user_name = __salt__['pillar.get']('admin_login:user')
     password = __salt__['pillar.get']('admin_login:password')
-    request_url = 'http://%s:7180/api/v11/clusters/%s/services/%s/nameservices' % (cm_host,
+    request_url = 'http://%s:8080/api/v1/clusters/%s/configurations/service_config_versions?service_name=%s' % (cm_host,
                                                                                    cluster_name,
                                                                                    service_name)
+
     r = requests.get(request_url, auth=(user_name, password))
-    named_service = ""
     if r.status_code == 200:
         response = r.json()
         if 'items' in response:
-            named_service = response['items'][0]['name']
-    return named_service
-
+            for item in response['items']:
+                if item['is_current'] == True:
+                    for config in item['configurations']:
+                        if config['type'] == 'hdfs-site':
+                            if 'dfs.nameservices' in config['properties']:
+                                name_service = config['properties']['dfs.nameservices']
+                                if name_service is not None and len(name_service) > 0:
+                                    return name_service
+    return None
 
 def cluster_name():
     """Returns PNDA cluster name of the minion"""
@@ -26,10 +32,10 @@ def namenodes_ips():
     """Returns hadoop name nodes ip addresses"""
     cm_name = cluster_name()
     cm_host = cloudera_manager_ip()
-    service_name = 'hdfs01'
-    named_service = get_named_service(cm_host, cm_name, service_name) 
-    if named_service:
-        return [named_service]
+    service_name = 'HDFS'
+    name_service = get_name_service(cm_host, cm_name, service_name) 
+    if name_service:
+        return [name_service]
     return ip_addresses('cloudera_namenode')
 
 def cloudera_manager_ip():
