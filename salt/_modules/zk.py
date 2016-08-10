@@ -1,27 +1,19 @@
-from cm_api.api_client import ApiResource
-
-
-def connect_cm(cm_api, cm_username, cm_password):
-    api = ApiResource(cm_api, username=cm_username, password=cm_password)
-    return api
+import requests
 
 def zookeeper_quorum():
     """ Return list of ZK quorum """
     user_name = __salt__['pillar.get']('admin_login:user')
     password = __salt__['pillar.get']('admin_login:password')
-    cm_ip = __salt__['pnda.cloudera_manager_ip']()
-    api = connect_cm(
-        cm_ip,
-        user_name,
-        password)
-    cluster_name = api.get_all_clusters()[0].name
-    cluster = api.get_cluster(cluster_name)
+    cm_host = __salt__['panda.cloudera_manager_ip']()
+    cluster_name = __grains__['panda_cluster']
+
+    request_url = 'http://%s:8080/api/v1/clusters/%s/services/ZOOKEEPER/components/ZOOKEEPER_SERVER' % (cm_host, cluster_name)
+
     zk_quorum = []
-    for service in cluster.get_all_services():
-        if service.type == "ZOOKEEPER":
-            for role in service.get_all_roles():
-                if role.type == "SERVER":
-                    zk_quorum.append('%s' % api.get_host(role.hostRef.hostId).ipAddress + ':2181')
+    r = requests.get(request_url, auth=(user_name, password))
+    if r.status_code == 200:
+        response = r.json()
+        if 'host_components' in response:
+            for host_component in response['host_components']:
+                zk_quorum.append(host_component['HostRoles']['host_name'] + ':2181')
     return ",".join(zk_quorum)
-
-
