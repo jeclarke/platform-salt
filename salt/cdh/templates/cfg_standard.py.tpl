@@ -86,7 +86,7 @@ ZK_CFG = {"service": "ZOOKEEPER",
 MAPRED_CFG = {
     "service": "YARN",
     "name": "yarn01",
-    "config": {'hdfs_service': 'hdfs01', 'zookeeper_service': 'zk01', 'yarn_log_aggregation_retain_seconds': '265000'},
+    "config": {'hdfs_service': 'hdfs01', 'zookeeper_service': 'zk01', 'yarn_log_aggregation_retain_seconds': '265000', 'yarn_log_aggregation_enable': 'false'},
     "roles": [
         {
             "name": "yarn-jh",
@@ -133,9 +133,9 @@ MAPRED_CFG = {
         },
         {
             "type": "JOBHISTORY",
-            "config": 
+            "config":
                 {
-                    'mr2_jobhistory_log_dir': '/var/log/pnda/hadoop-mapreduce', 
+                    'mr2_jobhistory_log_dir': '/var/log/pnda/hadoop-mapreduce',
                     'mapreduce_jobhistory_max_age_ms': '265000000',
                     'mr2_jobhistory_java_heapsize': '8589934592'
                 }
@@ -214,9 +214,14 @@ HDFS_CFG = {
                 "target": "MGR03"
             },
             {
-                "name": "hdfs-gw",
+                "name": "hdfs-gw1",
                 "type": "GATEWAY",
                 "target": "EDGE"
+            },
+            {
+                "name": "hdfs-gw2",
+                "type": "GATEWAY",
+                "target": "CM"
             }
         ],
     "role_cfg":
@@ -236,7 +241,7 @@ HDFS_CFG = {
             },
             {
                 "type": "JOURNALNODE",
-                "config": {'dfs_journalnode_edits_dir':'/data0/jn/data'}
+                "config": {'dfs_journalnode_edits_dir':'/data0/jn/data', 'journalnode_log_dir': '/var/log/pnda/hadoop/jn'}
             },
             {
                 "type": "SECONDARYNAMENODE",
@@ -251,6 +256,10 @@ HDFS_CFG = {
             {
                 "type": "GATEWAY",
                 "config": {}
+            },
+            {
+                "type": "HTTPFS",
+                "config": {'httpfs_log_dir': '/var/log/pnda/hadoop-httpfs'}
             }
         ]
 }
@@ -258,18 +267,18 @@ HDFS_CFG = {
 HBASE_CFG = {
     "service": "HBASE",
     "name": "hbase01",
-    "config": {'hdfs_service': 'hdfs01', 'zookeeper_service': 'zk01', 'hbase_client_keyvalue_maxsize': '209715200'},
+    "config": {'hdfs_service': 'hdfs01', 'zookeeper_service': 'zk01'},
     "roles":
         [
             {
                 "name": "master",
                 "type": "MASTER",
-                "target": "MGR03"
+                "target": "MGR01"
             },
             {
                 "name": "master_sec",
                 "type": "MASTER",
-                "target": "MGR04"
+                "target": "MGR02"
             },
             {
                 "name": "regionserver",
@@ -435,11 +444,13 @@ SPARK_CFG = {
     'service': 'SPARK_ON_YARN',
     'name': 'spark_on_yarn',
     'config': {
-        'yarn_service': MAPRED_CFG['name']
+        'yarn_service': MAPRED_CFG['name'],
+        'spark-conf/spark-env.sh_service_safety_valve':"SPARK_PYTHON_PATH={{ app_packages_dir }}/lib/python2.7/site-packages\nexport PYTHONPATH=\"$PYTHONPATH:$SPARK_PYTHON_PATH\""
     },
     'roles': [
         {'name': 'spark', 'type': 'SPARK_YARN_HISTORY_SERVER', 'target': 'MGR03'},
-        {'name': 'spark_gw', 'type': 'GATEWAY', 'target': 'EDGE'}
+        {'name': 'spark_gw1', 'type': 'GATEWAY', 'target': 'EDGE'},
+        {'name': 'spark_gw2', 'type': 'GATEWAY', 'target': 'DATANODE'}
     ],
     'role_cfg': [
         {'type': 'SPARK_YARN_HISTORY_SERVER', 'config': {}},

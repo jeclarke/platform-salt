@@ -1,5 +1,7 @@
 {%- from 'kafka/settings.sls' import kafka, config with context %}
 
+{% set flavor_cfg = pillar['pnda_flavor']['states'][sls] %}
+
 {% set pnda_cluster = salt['pnda.cluster_name']() %}
 
 {%- set kafka_zookeepers = [] -%}
@@ -7,7 +9,19 @@
 {%- do kafka_zookeepers.append(ip+':2181') -%}
 {%- endfor -%}
 
-{% set mem_xmx = (((salt['grains.get']('mem_total')/1000)+1)*0.5)|int %}
+{% set inter_broker_listener = salt['pillar.get']('kafka:inter_broker_listener', 'REPLICATION') %}
+{%- set internal_ip = salt['network.interface_ip'](salt['grains.get']('vlans:pnda','eth0')) -%}
+{%- set ingest_ip = salt['network.interface_ip'](salt['grains.get']('vlans:ingest','eth0')) -%}
+
+{%- set internal_port = salt['grains.get']('kafka:internal_port',9092) -%}
+{%- set replication_port = salt['grains.get']('kafka:replication_port',9093) -%}
+{%- set ingest_port = salt['grains.get']('kafka:ingest_port',9094) -%}
+
+{% set listener_map = salt['pillar.get']('kafka:listener_map', 'INGEST:PLAINTEXT,REPLICATION:PLAINTEXT,INTERNAL_PLAINTEXT:PLAINTEXT') %}
+{% set listeners = 'INGEST://'+ingest_ip+':'+ingest_port|string+',REPLICATION://'+internal_ip+':'+replication_port|string+',INTERNAL_PLAINTEXT://'+internal_ip+':'+internal_port|string %}
+{% set advertised_listeners = 'INGEST://'+ingest_ip+':'+ingest_port|string+',REPLICATION://'+internal_ip+':'+replication_port|string+',INTERNAL_PLAINTEXT://'+internal_ip+':'+internal_port|string %}
+
+{% set offsets_topic_replication_factor  = salt['pnda.kafka_brokers_ips']()|length -%}
 
 include:
   - kafka
@@ -33,8 +47,15 @@ kafka-server-conf:
     - template: jinja
     - context:
       zk_hosts: {{ kafka_zookeepers|join(',') }}
+      kafka_log_retention_bytes: {{ flavor_cfg.kafka_log_retention_bytes }}
+      listener_map: {{ listener_map }}
+      listeners: {{ listeners }}
+      advertised_listeners: {{ advertised_listeners }}
+      inter_broker_listener: {{ inter_broker_listener }}
+      offsets_topic_replication_factor: {{ offsets_topic_replication_factor }}
 
-kafka-copy_kafka_upstart:
+{% if grains['os'] == 'Ubuntu' %}
+kafka-copy_kafka_service:
   file.managed:
     - source: salt://kafka/templates/kafka.init.conf.tpl
     - name: /etc/init/kafka.conf
@@ -42,8 +63,40 @@ kafka-copy_kafka_upstart:
     - template: jinja
     - context:
       workdir: {{ kafka.prefix }}
-      mem_xmx: {{ mem_xmx }}
-      mem_xms: {{ mem_xmx }}
+      mem_xmx: {{ flavor_cfg.kafka_heapsize }}
+      mem_xms: {{ flavor_cfg.kafka_heapsize }}
+{% elif grains['os'] == 'RedHat' %}
+kafka-copy_script:
+  file.managed:
+    - source: salt://kafka/templates/kafka-start.sh.tpl
+    - name: {{ kafka.prefix }}/kafka-start-script.sh
+    - mode: 755
+    - template: jinja
+    - context:
+      workdir: {{ kafka.prefix }}
+kafka-copy_env:
+  file.managed:
+    - source: salt://kafka/templates/kafka-env.tpl
+    - name: /etc/default/kafka-env
+    - mode: 644
+    - template: jinja
+    - context:
+      mem_xmx: {{ flavor_cfg.kafka_heapsize }}
+      mem_xms: {{ flavor_cfg.kafka_heapsize }}
+
+kafka-copy_kafka_systemd:
+  file.managed:
+    - source: salt://kafka/templates/kafka.service.tpl
+    - name: /usr/lib/systemd/system/kafka.service
+    - mode: 644
+    - template: jinja
+    - context:
+      workdir: {{ kafka.prefix }}
+
+kafka-systemctl_reload:
+  cmd.run:
+    - name: /bin/systemctl daemon-reload; /bin/systemctl enable kafka
+{% endif %}
 
 kafka-logs-configuration-dirs:
   file.directory:
@@ -63,10 +116,6 @@ kafka-logs-configuration:
     - pattern: '(\${kafka.logs.dir})'
     - repl: '/var/log/pnda/kafka'
 
-kafka-service:
-  service.running:
-    - name: kafka
-    - enable: true
-    - watch:
-      - file: kafka-server-conf
-      - file: kafka-copy_kafka_upstart
+kafka-start_service:
+  cmd.run:
+    - name: 'service kafka stop || echo already stopped; service kafka start'

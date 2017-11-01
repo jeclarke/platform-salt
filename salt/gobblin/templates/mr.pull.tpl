@@ -3,7 +3,7 @@
 ###############################################################################
 
 # File system URIs
-fs.uri=hdfs://{{ namenode }}:8020
+fs.uri={{ namenode }}
 writer.fs.uri=${fs.uri}
 
 job.name=PullFromKafkaMR
@@ -41,3 +41,10 @@ kite.writer.dataset.uri={{ kite_dataset_uri }}
 # ==== Metrics ====
 metrics.enabled=true
 metrics.reporting.file.enabled=true
+
+# ==== Blacklist topics ====
+# Recent Kafka version uses internal __consumer_offsets topic, which we don't
+# want to ingest
+# Don't ingest the avro.internal.testbot topic as it's only an internal PNDA
+# testing topic
+topic.blacklist=__consumer_offsets,avro.internal.testbot

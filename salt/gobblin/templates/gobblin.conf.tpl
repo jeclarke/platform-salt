@@ -6,8 +6,8 @@ umask 022
 setuid {{ gobblin_user }}
 
 env JAVA_HOME="/usr/lib/jvm/java-8-oracle/"
-env HADOOP_BIN_DIR="/opt/cloudera/parcels/CDH/bin"
+env HADOOP_BIN_DIR="{{ hadoop_home_bin }}"
 
 chdir {{ gobblin_directory_name }}
 
-exec bash ./bin/gobblin-mapreduce.sh --conf /home/{{ gobblin_user }}/configs/mr.pull --workdir "{{ gobblin_work_dir }}" --jars $(ls lib/*.jar | grep -v -E '(hive-exec|hadoop)' | tr '\n' ',')
+exec bash ./bin/gobblin-mapreduce.sh --conf {{ gobblin_job_file }} --logdir /var/log/pnda/gobblin --workdir "{{ gobblin_work_dir }}" --jars $(ls lib/*.jar | tr '\n' ',')

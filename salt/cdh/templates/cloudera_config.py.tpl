@@ -17,11 +17,10 @@ ips = {}
 ips['{{ host }}'] = '{{ ip[0] }}'
 {% endfor %}
 
-flavor = '{{ grains['pnda']['flavor'] }}'
 roles = {}
-{% for host, minion_grains in cloudera_config.items() -%}
-roles['{{ host }}'] = '{{ minion_grains['cloudera']['role'] }}'
-{% if 'cloudera_manager' in minion_grains.get('roles', []) %}
+{% for host, minion_grains in hadoop_config.items() -%}
+roles['{{ host }}'] = '{{ minion_grains['hadoop']['role'] }}'
+{% if 'hadoop_manager' in minion_grains.get('roles', []) %}
 manager = ips['{{ host }}']
 {% endif %}
 {% endfor %}
@@ -52,8 +51,8 @@ parcel_version = None
 {% set anaconda_parcel_version = pillar['anaconda']['parcel_version'] %}
 
 if __name__ == '__main__':
-    cm_setup.setup_hadoop(manager, "cloudera", nodes, '{{ private_key_filename }}',
+    cm_setup.setup_hadoop(manager, nodes,
                           cluster_name='{{ cluster_name }}', cm_username='{{ cm_username }}',
-                          cm_password='{{ cm_password }}', flavor=flavor,
+                          cm_password='{{ cm_password }}',
                           parcel_repo=parcel_repo, parcel_version=parcel_version,
                           anaconda_repo='{{ anaconda_parcel_repo }}', anaconda_version='{{ anaconda_parcel_version }}')
